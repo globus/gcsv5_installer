@@ -8,10 +8,6 @@
 # The only part you should be concerned about changing for a simple installation
 # is the definitions below 'GLOBUS_CONNECT_SERVER:'.
 
-#
-# The configuration you'd be interested in 
-
-
 - hosts: all 
   roles:
     # This is the role that provides all of the magic
