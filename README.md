@@ -25,7 +25,7 @@ Since this repo was created for the purpose of automating repeatable installatio
 
 1. Git clone the repo to your installation node
     ```shell
-    $ git clone https://github.com/globusonline/globus-search.git
+    $ git clone https://github.com/globus/gcsv5_installer.git
     ```
 2. Check that this repo supports your target system. Look in [ansible/roles/globus-connect-server/tasks] for a file named `install_<your system type>`. 
 3. Make sure Python3 is installed on your system.
