@@ -1,0 +1,95 @@
+---
+
+- name: '[Gateways] Query current gateway definitions'
+  become:  yes
+  command: /usr/sbin/globus-connect-server-config storage-gateway list
+  register: gateway_list
+  when:
+    - gcs.gateways is defined
+
+- name: '[Gateways] Create missing storage gateways'
+  become: yes
+  vars:
+  command: >
+        /usr/sbin/globus-connect-server-config storage-gateway create
+        --root {{ item.root }}
+        --connector {{ item.connector }}
+        --display-name "{{ item.display_name }}"
+
+        {% if item.high_assurance is defined and item.high_assurance|bool %}
+        --high-assurance
+        --authentication-assurance-timeout {{ item.authentication_assurance_timeout }}
+        {% endif %}
+
+        --domain {{ item.domain }}
+
+        {% if item.identify_provider is defined %}
+        {% if item.identify_provider != None %}
+        --identity-provider {{ item.identity_provider }}
+        {% endif %}
+        {% endif %}
+
+        {% if item.restrict_paths is defined %}
+        {% if item.restrict_paths != None %}
+        --restrict-paths {{ item.restrict_paths }}
+        {% endif %}
+        {% endif %}
+
+        --{{ item.mapped_collections }}-mapped-collections
+        --{{ item.guest_collections }}-guest-collections
+
+        {% if item.posix is defined %}
+          {% if item.posix.users_allow is defined %}
+            {% if item.posix.users_allow %}
+            --users-allow {{ item.posix.users_allow }}
+            {% endif %}
+          {% endif %}
+
+          {% if item.posix.users_deny is defined %}
+            {% if item.posix.users_deny %}
+            --users-deny {{ item.posix.users_deny }}
+            {% endif %}
+          {% endif %}
+
+          {% if item.posix.groups_allow is defined %}
+            {% if item.posix.groups_allow %}
+            --users-allow {{ item.posix.groups_allow }}
+            {% endif %}
+          {% endif %}
+
+          {% if item.posix.groups_deny is defined %}
+            {% if item.posix.groups_deny %}
+            --users-deny {{ item.posix.grousp_deny }}
+            {% endif %}
+          {% endif %}
+        {% endif %}
+
+        {% if item.google_drive is defined %}
+          {% if item.google_drive.user_api_rate_quota is defined %}
+          --user-api-rate-quota {{ item.google_drive.user_api_rate_quota }}
+          {% endif %}
+        {% endif %}
+
+        {% if item.s3 is defined %}
+        --s3-user-credentials {{ item.s3.s3_user_credentials }}
+        --s3-endpoint {{ item.s3.s3_endpoint }}
+          {% if item.s3.s3_bucket is defined %}
+          --s3-bucket {{ item.s3.s3_bucket }}
+          {% endif %}
+        {% endif %}
+
+        {% if item.box is defined %}
+        --box-json-config {{ item.box.box_json_config }}
+        {% endif %}
+
+        {% if item.blackpearl is defined %}
+        --type {{ item.blackpearl.bp_access_id_file }}
+        {% endif %}
+
+
+  loop: "{{ gcs.gateways if gcs.gateways != None else [] }}"
+  when: 
+    - gcs.gateways is defined
+    - "'| '~item.display_name~' |' not in gateway_list.stdout"
+
+

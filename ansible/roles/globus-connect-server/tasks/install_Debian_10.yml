@@ -1,0 +1,40 @@
+---
+
+- name: Install backports repository definition
+  become: yes
+  apt_repository:
+    repo: deb http://ftp.debian.org/debian {{ os_release }}-backports main
+    state: present
+    filename: '{{ os_release }}-backports'
+
+
+- name: Install the Globus Toolkit repository definition
+  become: yes
+  apt:
+    deb: http://downloads.globus.org/toolkit/gt6/stable/installers/repo/deb/globus-toolkit-repo_latest_all.deb
+    state: present
+
+- name: Enable Globus Toolkit repositories
+  become: yes
+  replace:
+    path: /etc/apt/sources.list.d/globus-toolkit-6-stable-{{ os_release }}.list
+    regexp: '^# deb '
+    replace: 'deb '
+
+- name: Enable Globus Connect Server repositories
+  become: yes
+  replace:
+    path: /etc/apt/sources.list.d/globus-connect-server-stable-{{ os_release }}.list
+    regexp: '^# deb '
+    replace: 'deb '
+
+- name: Update the APT cache
+  become: yes
+  apt:
+    update_cache: yes
+
+- name: Install Globus Connect Server
+  become: yes
+  apt:
+    name: globus-connect-server{{gcs.version}}
+    state: present

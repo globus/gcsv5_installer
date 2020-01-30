@@ -1,0 +1,366 @@
+---
+
+# I use the variable name prefix '_tmp_' for variables that aren't expected
+# to persist past the end of the current phase.
+
+################################################################
+#
+# Phase 1: Determine which collections have not been created yet
+#
+################################################################
+
+  # _tmp_existing_collections is the raw output of 
+  # 'config collection list' and so we can't use it easily.
+
+- name: '[Collections] Query current collection definitions'
+  become:  yes
+  command: /usr/sbin/globus-connect-server-config collection list
+  register: _tmp_existing_collections
+  when:
+    - gcs.gateways is defined
+
+  # _missing_collections = [ [gateway, collection] ]
+  #
+  # This is a list of pairs. Each collection is paired with it's parent gateway.
+  # The sub elements of gateway and collection are exactly what were set in the
+  # 'gcs' map from the playbook.
+
+- name: '[Collections] Determine missing collections'
+  vars:
+    _missing_collections: []
+  set_fact:
+    _missing_collections: "{{ _missing_collections + [[item.0, item.1]] }}"
+  with_subelements:
+    - "{{ gcs.gateways }}"
+    - collections
+    - skip_missing: True
+  when: >
+    item.0.connector +
+    ' | ' + item.0.display_name +
+    ' | ' + item.1.type +
+    ' | ' + item.1.display_name not in _tmp_existing_collections.stdout
+
+  # _missing_mapped_collections has the same format as _missing_collections but
+  # only contains gateway/collection pairs of mapped collections that do not
+  # exist
+
+- name: '[Collections] Determine missing mapped collections'
+  vars:
+    _missing_mapped_collections: []
+  set_fact:
+    _missing_mapped_collections: "{{ _missing_mapped_collections + [item] }}"
+  with_items:
+    - "{{ _missing_collections }}"
+  when:
+    - _missing_collections is defined
+    - item[1].type == "mapped"
+
+  # _missing_guest_collections has the same format as _missing_collections but
+  # only contains gateway/collection pairs of guest collections that do not
+  # exist
+
+- name: '[Collections] Determine missing guest collections'
+  vars:
+    _missing_guest_collections: []
+  set_fact:
+    _missing_guest_collections: "{{ _missing_guest_collections + [item] }}"
+  with_items:
+    - "{{ _missing_collections }}"
+  when:
+    - _missing_collections is defined
+    - item[1].type == "guest"
+
+################################################################
+#
+# Phase 2: Create a map from gateway names to gateway ids
+#
+################################################################
+
+- name: '[Collections] Query current gateway definitions'
+  become:  yes
+  command: /usr/sbin/globus-connect-server-config storage-gateway list
+  register: _tmp_gateway_list
+  when:
+    - _missing_collections is defined
+
+  # _gateway_map = {gateway display name: gateway uuid}
+  #
+  # This is a map that converts a storage gateway display name to a storage
+  # gateway uuid
+
+- name: '[Collections] Generate the gateway name->UUID mapping'
+  set_fact:
+    _gateway_map: "{{ _gateway_map|default({}) | combine( {item.split(' | ')[2]: item.split(' | ')[0]} ) }}"
+  with_items:
+    - "{{ _tmp_gateway_list.stdout_lines }}"
+  when:
+    - _tmp_gateway_list is not skipped
+
+################################################################
+#
+# Phase 3: Create missing mapped collections
+#
+################################################################
+
+- name: '[Collections] Create mapped collections'
+  become: yes
+  command: >
+    /usr/sbin/globus-connect-server-config collection create
+    --storage-gateway-id {{ _gateway_map[item[0].display_name] }}
+    --collection-type mapped
+    --display-name '{{ item.1.display_name }}'
+    {% if item.1.root is defined %}
+    --root {{ item.1.root }}
+    {% endif %}
+    {% if item.1.default_directory is defined %}
+    --default-directory {{ item.1.default_directory }}
+    {% endif %}
+  with_items:
+    - "{{ _missing_mapped_collections }}"
+  when:
+    - _missing_mapped_collections is defined
+    - _gateway_map is defined
+  register: result
+  until: result.stdout.find("No collections available. Try again later.") == -1
+  retries: 10
+  delay: 10
+
+################################################################
+#
+# Phase 4: Create a map from auth usernames to auth ids
+#
+################################################################
+
+- name: "[Collections] Query user's Auth identities"
+  vars:
+    query_path: "/v2/api/identities?usernames="
+  uri:
+    url: "{{ AUTH_API }}{{ query_path }}{{ item.1.guest.user_auth_identity }}"
+    method: GET
+    force_basic_auth: yes
+    user: "{{ gcs.app_client_id }}"
+    password: "{{ gcs.app_client_secret }}"
+  register: _auth_id_list
+  with_items:
+    - "{{ _missing_guest_collections }}"
+  when:
+    - _missing_guest_collections is defined
+
+  # _auth_id_map = {'username': id}
+  #
+  # This is a map that converts a Auth username to Auth id. This map only
+  # contains entries for missing guest collections.
+
+- name: '[Collections] Generate the auth identity name->UUID mapping'
+  set_fact:
+    _auth_id_map: "{{ _auth_id_map|default({}) | combine({item.1.username: item.1.id}) }}"
+  with_subelements:
+    - "{{ _auth_id_list.results }}"
+    - json.identities
+  when:
+    - _auth_id_list is not skipped
+
+################################################################
+#
+# Phase 5: Setup access to the GCS Manager
+#
+################################################################
+
+- name: '[Collections] Get a fresh access token for the GCS Manager'
+  vars:
+    payload: "refresh_token={{ gcs.gcs_manager_refresh_token }}\
+             &grant_type=refresh_token"
+  uri:
+    url: "{{ AUTH_API }}/v2/oauth2/token"
+    method: POST
+    force_basic_auth: yes
+    user: "{{ gcs.app_client_id }}"
+    password: "{{ gcs.app_client_secret }}"
+    body_format: form-urlencoded
+    body: "{{ payload }}"
+  register: _gcsm_access_token
+  when:
+    - _missing_guest_collections is defined
+
+  # _gcsm_access_token = <access_token>
+  # This token as the manage_collections scope
+
+- name: '[Collections] Save the new GCS Manager access token'
+  set_fact:
+    _gcsm_access_token: "{{ _gcsm_access_token.json.access_token }}"
+  when:
+    - _gcsm_access_token is not skipped
+
+  # _gcs_fqdn = <fqdn of manager endpoint>
+  # Talk to the GCS manager at this FQDN
+
+- name: '[Collections] Lookup the GCS Manager FQDN'
+  become: yes
+  vars:
+    _path: /var/lib/globus-connect-server/dns-name.txt
+  set_fact:
+    _gcs_fqdn: "{{lookup('file', _path)}}"
+  when:
+    - _missing_guest_collections is defined
+
+################################################################
+#
+# Phase 6: Determine which credentials have not been created yet
+#
+################################################################
+
+  # This API call will produce a list of:
+  # {
+  #   "display_name": "jasonalt",
+  #   "id": "fb3d1b95-861d-41a6-9498-b7fea4590e5e",
+  #   "identity_id": "7bb58e97-a695-4bbb-a8b5-36b709c12ab6",
+  #   "invalid": false,
+  #   "storage_credential": null,
+  #   "storage_gateway": "POSIX GW 3",
+  #   "storage_gateway_id": "bf7f088d-1c2d-460c-be50-d9e70abccd8f",
+  #   "storage_gateway_user_id": "jasonalt"
+  # }
+
+- name: '[Collections] Query current user credential definitions'
+  uri:
+    url: "https://{{ _gcs_fqdn }}/api/v1/user_credentials"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _gcsm_access_token }}"
+  register: _tmp_existing_creds_full
+  when:
+    - _missing_guest_collections is defined
+
+  # _tmp_existing_creds_brief:
+  #   list of [gateway user name, gateway uuid, auth user id] tuples
+
+- name: '[Collections] Coalesce credentials list into format for comparison'
+  set_fact:
+    _tmp_existing_creds_brief: "{{ _tmp_existing_creds_brief|default([]) + [[item.storage_gateway_user_id, item.storage_gateway_id, item.identity_id]] }}"
+  with_items:
+    - "{{ _tmp_existing_creds_full.json }}"
+  when:
+    - _tmp_existing_creds_full is not skipped
+
+  # _tmp_needed_user_creds:
+  #   list of [gateway user name, gateway uuid, auth user id] tuples
+
+- name: '[Collections] Determine needed user credentials'
+  set_fact:
+    _tmp_needed_user_creds: "{{ _tmp_needed_user_creds|default([]) + [ [item.1.guest.local_username, _gateway_map[item.0.display_name], _auth_id_map[item.1.guest.user_auth_identity]]] }}"
+  with_items:
+    - "{{ _missing_guest_collections }}"
+  when:
+    - _missing_guest_collections is defined
+
+  # _missing_user_creds: 
+  #     list of [gateway user name, gateway uuid, auth user id] tuples
+
+- name: '[Collections] Determine missing user credentials'
+  set_fact:
+    _missing_user_creds: "{{ _tmp_needed_user_creds|unique|difference(_tmp_existing_creds_brief|default([])) }}"
+  when:
+    - _tmp_needed_user_creds is defined
+
+################################################################
+#
+# Phase 7: Create missing user credentials
+#
+################################################################
+
+- name: '[Collections] Create user credentials'
+  vars:
+    payload:
+      'storage_gateway_user_id': "{{ item.0 }}"
+      'storage_gateway': "{{ item.1 }}"
+      'identity_id':  "{{ item.2 }}"
+  uri:
+    url: "https://{{ _gcs_fqdn }}/api/v1/user_credentials"
+    method: POST
+    status_code: 201
+    headers:
+      Authorization: "Bearer {{ _gcsm_access_token }}"
+    body_format: json
+    body: "{{ payload }}"
+  with_items:
+    - "{{ _missing_user_creds }}"
+  when:
+    - _missing_user_creds is defined
+
+################################################################
+#
+# Phase 8: Create a map from user/gateway to user credential id
+#
+################################################################
+
+  # This API call will produce a list of:
+  # {
+  #   "display_name": "jasonalt",
+  #   "id": "fb3d1b95-861d-41a6-9498-b7fea4590e5e",
+  #   "identity_id": "7bb58e97-a695-4bbb-a8b5-36b709c12ab6",
+  #   "invalid": false,
+  #   "storage_credential": null,
+  #   "storage_gateway": "POSIX GW 3",
+  #   "storage_gateway_id": "bf7f088d-1c2d-460c-be50-d9e70abccd8f",
+  #   "storage_gateway_user_id": "jasonalt"
+  # }
+
+- name: '[Collections] Query updated user credential definitions'
+  uri:
+    url: "https://{{ _gcs_fqdn }}/api/v1/user_credentials"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _gcsm_access_token }}"
+  register: _tmp_existing_creds_full
+  when:
+    - _missing_guest_collections is defined
+
+  # _tmp_existing_creds_brief:
+  #   list of [gateway user name, gateway uuid, auth user id] tuples
+
+  # _credential_map:
+  #   <gateway_id>: {
+  #     <gateway_user_id>: {
+  #       <identity_id>: credential_id
+  #     }
+  #   }
+
+- name: '[Collections] Generate the user/gateway->credential id mapping'
+  set_fact:
+    _credential_map: "{{ _credential_map|default({}) | combine({item.storage_gateway_id: {item.storage_gateway_user_id: {item.identity_id: item.id}}}) }}"
+  with_items:
+    - "{{ _tmp_existing_creds_full.json }}"
+  when:
+    - _tmp_existing_creds_full is not skipped
+
+################################################################
+#
+# Phase 9: Create missing guest collections
+#
+################################################################
+
+- name: '[Collections] Create guest collections'
+  vars:
+    payload:
+      'user_credential_id': "{{ _credential_map[_gateway_map[item.0.display_name]][item.1.guest.local_username][_auth_id_map[item.1.guest.user_auth_identity]] }}"
+      'display_name': "{{ item.1.display_name }}"
+      'root_path': "{{ item.1.root_path | default('', true) }}"
+      'default_directory': "{{ item.1.default_directory | default('', true)}}"
+  uri:
+    url: "https://{{ _gcs_fqdn }}/api/v1/collections"
+    method: POST
+    status_code: 201
+    headers:
+      Authorization: "Bearer {{ _gcsm_access_token }}"
+    body_format: json
+    body: "{{ payload }}"
+  with_items:
+    - "{{ _missing_guest_collections }}"
+  when:
+    - _missing_guest_collections is defined
+    - _credential_map is defined
+  register: result
+  until:
+    - ('status' not in result or result.status != 503)
+  retries: 10
+  delay: 10

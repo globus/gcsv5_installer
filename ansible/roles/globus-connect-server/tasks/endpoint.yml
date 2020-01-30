@@ -1,0 +1,152 @@
+---
+
+#
+# If 'endpoint show' fails, assume setup needs to be run
+#
+- name: '[Endpoint] Check if endpoint has already been setup'
+  become: yes
+  command: /sbin/globus-connect-server-config endpoint show
+  no_log: True
+  register: endpoint_show
+  ignore_errors: True
+
+- name: '[Endpoint] Set [Globus].ClientId'
+  become: yes
+  ini_file:
+    dest: /etc/globus-connect-server.conf
+    section: Globus
+    option: ClientId
+    value: "{{ gcs.client_id }}"
+  when: endpoint_show is failed
+
+- name: '[Endpoint] Set [Globus].ClientSecret'
+  become: yes
+  ini_file:
+    dest: /etc/globus-connect-server.conf
+    section: Globus
+    option: ClientSecret
+    value: "{{ gcs.client_secret }}"
+  when: endpoint_show is failed
+
+- name: '[Endpoint] Set [Globus].Instance'
+  become: yes
+  ini_file:
+    dest: /etc/globus-connect-server.conf
+    section: Globus
+    option: Instance
+    value: "{{ gcs.environment }}"
+  when:
+    - endpoint_show is failed
+
+- name: '[Endpoint] Set [Endpoint].Name'
+  become: yes
+  ini_file:
+    dest: /etc/globus-connect-server.conf
+    section: Endpoint
+    option: Name
+    value: "{{ gcs.endpoint_name }}"
+  when:
+    - endpoint_show is failed
+    - gcs.endpoint_name is defined and gcs.endpoint_name != None
+
+- name: '[Endpoint] Set [Endpoint].ServerName'
+  become: yes
+  ini_file:
+    dest: /etc/globus-connect-server.conf
+    section: Endpoint
+    option: ServerName
+    value: "{{ gcs.endpoint_server_name }}"
+  when:
+    - endpoint_show is failed
+    - gcs.endpoint_server_name is defined and gcs.endpoint_server_name != None
+
+- name: '[Endpoint] Set [LetsEncrypt].Email'
+  become: yes
+  ini_file:
+    dest: /etc/globus-connect-server.conf
+    section: LetsEncrypt
+    option: Email
+    value: "{{ gcs.lets_encrypt_email }}"
+  when: endpoint_show is failed
+
+- name: '[Endpoint] Set [LetsEncrypt].AgreeToS'
+  become: yes
+  ini_file:
+    dest: /etc/globus-connect-server.conf
+    section: LetsEncrypt
+    option: AgreeToS
+    value: "True"
+  when: endpoint_show is failed
+
+- name: '[Endpoint] Setup Globus Connect Server'
+  become: yes
+  command: /sbin/globus-connect-server-setup
+  register: setup_endpoint
+  when: endpoint_show is failed
+
+- name: '[Endpoint] Query the endpoint id'
+  become: yes
+  command: /sbin/globus-connect-server-config endpoint show
+  register: endpoint_show
+
+- name: '[Endpoint] Save the endpoint id'
+  set_fact:
+    endpoint_id: "{{ endpoint_show.stdout_lines[1] }}"
+
+- name: '[Endpoint] Get a fresh access token for the Transfer API'
+  vars:
+    payload: "refresh_token={{ gcs.transfer_refresh_token }}&grant_type=refresh_token"
+  uri:
+    url: "{{ AUTH_API }}/v2/oauth2/token"
+    method: POST
+    body_format: form-urlencoded
+    user: "{{ gcs.app_client_id }}"
+    password: "{{ gcs.app_client_secret }}"
+    force_basic_auth: yes
+    body: "{{ payload }}"
+  register: transfer_access_token
+
+- name: '[Endpoint] Save the new Transfer API access token'
+  set_fact:
+    transfer_access_token: "{{ transfer_access_token.json.access_token }}"
+
+- name: '[Endpoint] Query Transfer for my subscription id(s)'
+  uri:
+    headers:
+      Authorization: "Bearer {{ transfer_access_token }}"
+    url: "{{ TRANSFER_API }}/v0.10/private/my_subscriptions"
+  register: my_subscriptions
+
+- name: '[Endpoint] Save my subuscription id'
+  set_fact:
+    subscription_id: "{{ my_subscriptions['json']['DATA'][0]['id'] }}"
+
+- name: '[Endpoint] Set the endpoint to managed'
+  vars:
+    payload:
+      subscription_id: "{{ subscription_id }}"
+  uri:
+    body: "{{ payload }}"
+    body_format: json
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ transfer_access_token }}"
+    url: "{{ TRANSFER_API }}/v0.10/endpoint/{{ endpoint_id }}/subscription"
+
+- name: '[Endpoint] Query endpoint admin'
+  become: yes
+  register: admin_show
+  command: /sbin/globus-connect-server-config endpoint admin show
+  when:
+    - gcs.endpoint_admin is defined and gcs.endpoint_admin != None
+
+- name: '[Endpoint] Add the endpoint admin'
+  become: yes
+  command: /sbin/globus-connect-server-config endpoint admin add-role "{{ gcs.endpoint_admin }}"
+  register: add_role_result
+  with_items:
+    - "administrator | identity | {{ gcs.endpoint_admin }}"
+  when:
+    - gcs.endpoint_admin is defined and gcs.endpoint_admin != None
+    - item not in admin_show.stdout_lines
+

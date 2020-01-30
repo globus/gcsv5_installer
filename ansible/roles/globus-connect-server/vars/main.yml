@@ -1,0 +1,25 @@
+#
+# Assign us a short alias for {{ GLOBUS_CONNECT_SERVER }}
+#
+---
+gcs: "{{ GLOBUS_CONNECT_SERVER }}"
+
+AUTH_URIS:
+  Production:  https://auth.globus.org
+  Preview:     https://auth.preview.globus.org
+  Staging:     https://auth.staging.globuscs.info
+  Test:        https://auth.test.globuscs.info
+  Integration: https://auth.integration.globuscs.info
+  Sandbox:     https://auth.sandbox.globuscs.info
+
+AUTH_API: "{{ AUTH_URIS[gcs.environment] }}"
+
+TRANSFER_URIS:
+  Production:  https://transfer.api.globusonline.org
+  Preview:     https://transfer.api.preview.globus.org
+  Staging:     https://transfer.api.staging.globuscs.info
+  Test:        https://transfer.api.test.globuscs.info
+  Integration: https://transfer.api.integration.globuscs.info
+  Sandbox:     https://transfer.api.sandbox.globuscs.info
+
+TRANSFER_API: "{{ TRANSFER_URIS[gcs.environment] }}"

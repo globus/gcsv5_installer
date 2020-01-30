@@ -1,0 +1,30 @@
+---
+
+- name: install GCS RPM repository key
+  become: yes
+  rpm_key:
+    key: https://downloads.globus.org/toolkit/gt6/stable/repo/rpm/RPM-GPG-KEY-Globus
+
+- name: install GT6 repository
+  become: yes
+  dnf:
+    name: http://downloads.globus.org/toolkit/gt6/stable/installers/repo/rpm/globus-toolkit-repo-latest.noarch.rpm
+    state: present
+
+- name: Enable Globus-Connect-Server-5-Stable
+  become: yes
+  shell: dnf config-manager --set-enabled Globus-Connect-Server-5-Stable
+  args:
+    warn: no
+
+- name: Enable Globus-Toolkit-6-Stable
+  become: yes
+  shell: dnf config-manager --set-enabled Globus-Toolkit-6-Stable
+  args:
+    warn: no
+
+- name: Install GCS packages
+  become: yes
+  yum:
+    name: [ 'globus-connect-server{{gcs.version}}' ]
+    state: present

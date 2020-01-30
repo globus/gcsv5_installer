@@ -1,0 +1,99 @@
+
+#
+# A playbook defines the configuration of the endpoint including
+# storage-gateways, collections, and ACLs. It is written in YAML and
+# so should be fairly simple to change for your needs.
+#
+
+# The only part you should be concerned about changing for a simple installation
+# is the definitions below 'GLOBUS_CONNECT_SERVER:'.
+
+#
+# The configuration you'd be interested in 
+
+
+- hosts: all 
+  roles:
+    # This is the role that provides all of the magic
+    - globus-connect-server
+  vars_files:
+    # Only needed for resolving "{{ variables }}" that are placed in a separate
+    # config file. Useful for separating out values that change per installation
+    # like GCS client id and secret.
+    - config.yml
+  vars:
+    #
+    # See ansible/roles/globus-connect-server/defaults/main.yml for the
+    # official reference of available options.
+    #
+    GLOBUS_CONNECT_SERVER:
+      #
+      # These values here are specific to a single installation and so are
+      # imported from 'config.yml'.
+      #
+
+      version:                   "{{ gcsv5_version }}"
+      environment:               "{{ globus_environment }}"
+      client_id:                 "{{ gcsv5_client_id }}"
+      client_secret:             "{{ gcsv5_client_secret }}"
+      lets_encrypt_email:        "{{ lets_encrypt_email }}"
+      endpoint_name:             "{{ endpoint_name }}"
+      endpoint_server_name:      "{{ endpoint_server_name }}"
+      endpoint_admin:            "{{ endpoint_admin }}"
+      gcs_manager_refresh_token: "{{ gcs_manager_refresh_token }}"
+      transfer_refresh_token:    "{{ transfer_refresh_token }}"
+      app_client_secret:         "{{ app_client_secret }}"
+      app_client_id:             "{{ app_client_id }}"
+
+
+      #
+      # This section has the endpoint definition that is common to multiple
+      # installations. You can re run the installation on multiple nodes with
+      # different values in 'config.yml' to produce an equivalent endpoint.
+      #
+
+      # (OPTIONAL) List of storage-gateways for this endpoint
+      gateways:
+        # '-' will start a new storage gateway definition
+        -
+          root: /
+          connector: POSIX
+          display_name: "POSIX Storage Gateway"
+          high_assurance: False
+          authentication_assurance_timeout: 
+          domain: globus.org
+          identity_provider:
+          mapped_collections: disallow
+          guest_collections: allow
+          restrict_paths:
+
+          posix:
+            users_allow:
+            users_deny:
+            groups_allow:
+            groups_deny:
+
+          # (OPTIONAL) List of collections for this gateway
+          collections:
+            # '-' will start a new collection definition
+            -
+              display_name: "Guest Collection"
+              root: /
+              default_directory: /
+              type: guest
+
+              guest:
+                user_auth_identity: jasonalt@globus.org
+                local_username: jasonalt
+
+
+              # (OPTIONAL)
+              acls:
+                # '-' will start a new acl definition
+                -
+                  principal_type: "{{ acl_principal_type }}"
+                  principal:      "{{ acl_principal }}"
+                  path:           "{{ acl_path }}"
+                  permissions:    "{{ acl_permissions }}"
+                  notify_email:
+                  notify_message:

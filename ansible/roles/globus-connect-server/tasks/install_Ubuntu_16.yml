@@ -1,0 +1,46 @@
+---
+
+- name: Install the Globus Toolkit repository definition
+  become: yes
+  apt:
+    deb: http://downloads.globus.org/toolkit/gt6/stable/installers/repo/deb/globus-toolkit-repo_latest_all.deb
+    state: present
+
+- name: Enable Globus Toolkit repositories
+  become: yes
+  replace:
+    path: /etc/apt/sources.list.d/globus-toolkit-6-stable-{{ os_release }}.list
+    regexp: '^# deb '
+    replace: 'deb '
+
+- name: Enable Globus Connect Server repositories
+  become: yes
+  replace:
+    path: /etc/apt/sources.list.d/globus-connect-server-stable-{{ os_release }}.list
+    regexp: '^# deb '
+    replace: 'deb '
+
+- name: Install software-properties-common
+  become: yes
+  apt:
+    name: software-properties-common
+    state: present
+
+- name: Install the PPA certbot repository
+  become: yes
+  apt_repository:
+    repo: ppa:certbot/certbot
+    state: present
+    update_cache: no
+  when: os_release != 'eoan'
+
+- name: Update the APT cache
+  become: yes
+  apt:
+    update_cache: yes
+
+- name: Install Globus Connect Server
+  become: yes
+  apt:
+    name: globus-connect-server{{gcs.version}}
+    state: present

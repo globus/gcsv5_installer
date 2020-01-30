@@ -1,0 +1,48 @@
+---
+#
+# Install GCSv5 by using the install file named for your OS.
+#
+- name: install GCS packages
+  vars:
+    os_distro: "{{ansible_facts['distribution']}}"
+    os_version: "{{ansible_facts['distribution_major_version']}}"
+    os_release: "{{ansible_facts['distribution_release']}}"
+  include_tasks:
+    file: "install_{{os_distro}}_{{os_version}}.yml"
+    apply:
+      tags:
+        - install
+  tags:
+    - install
+
+#
+# Create the GCSv5 endpoint
+#
+- name: create the GCSv5 endpoint
+  import_tasks: endpoint.yml
+  tags:
+    - endpoint
+
+#
+# Create the storage gateway(s)
+#
+- name: create the storage gateway(s)
+  import_tasks: gateways.yml
+  tags:
+    - gateways
+
+#
+# Create the collection(s)
+#
+- name: create the collection(s)
+  import_tasks: collections.yml
+  tags:
+    - collections
+
+#
+# Create the ACL(s)
+#
+- name: create the acl(s)
+  import_tasks: acls.yml
+  tags:
+    - acls

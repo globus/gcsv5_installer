@@ -1,0 +1,229 @@
+---
+
+################################################################
+#
+# Phase 1: Get a transfer access token for the GCS Client
+#
+################################################################
+
+- name: "[ACLs] Get an access token for the Transfer API"
+  vars:
+    payload: 
+      scope: urn:globus:auth:scope:transfer.api.globus.org:all
+      grant_type: client_credentials
+    collection_uuid: 6d4c72da-70a9-4706-887f-b4f77174ceea
+  uri:
+    url: "{{ AUTH_API }}/v2/oauth2/token"
+    method: POST
+    body_format: form-urlencoded
+    user: "{{ gcs.client_id }}"
+    password: "{{ gcs.client_secret }}"
+    force_basic_auth: yes
+    body: "{{ payload }}"
+  register: transfer_access_token
+
+  # transfer_access_token is a string value representing the GCS clients
+  # access token for Transfer
+
+- name: "[ACLs] Save the new Transfer API access token"
+  set_fact:
+    transfer_access_token: "{{ transfer_access_token.json.access_token }}"
+
+#([^\|]*)\| POSIX \| POSIX GW 2 \| mapped \| Mapped Collection \| ([^\n]*)
+
+################################################################
+#
+# Phase 2: Query transfer for all existing ACLs per collection
+#
+################################################################
+
+  #
+  # Step 1: Create a list of collection uuids
+  #
+
+    # _tmp_existing_collections is the raw output of
+    # 'config collection list' and so we can't use it easily.
+
+- name: '[ACLs] Query current collection definitions'
+  become:  yes
+  command: /usr/sbin/globus-connect-server-config collection list
+  register: _tmp_existing_collections
+
+    # _tmp_collection_uuids = [uuid1, uuid2]
+
+- name: '[ACLs] Create list of guest collection uuids'
+  vars:
+    _regexp: '^([^|]*) \| '
+  set_fact:
+    _tmp_collection_uuids: "{{ _tmp_collection_uuids|default([]) + item | regex_search(_regexp,'\\1') }}"
+  with_items:
+    - "{{ _tmp_existing_collections.stdout_lines[1:] }}"
+  when: >
+    ' | mapped | ' not in item
+
+ #
+ # Step 2: Query Transfer for ACLs on each collection uuid
+ #
+
+- name: '[ACLs] Query Transfer for existing ACLs'
+  uri:
+    headers:
+      Authorization: "Bearer {{ transfer_access_token }}"
+    url: "{{ TRANSFER_API }}/v0.10/endpoint/{{ item }}/access_list"
+  register: _tmp_existing_acls
+  with_items:
+    - "{{ _tmp_collection_uuids }}"
+
+  # _existing_acls = [(collection_uuid, {acl}), (collection_uuid, {acl})]
+
+- name: '[ACLs] Create the list of existing ACLs'
+  set_fact:
+    _existing_acls: "{{ _existing_acls|default([]) + [item.0.json.endpoint] | product([item.1]) | list }}"
+  with_subelements:
+    - "{{ _tmp_existing_acls.results }}"
+    - json.DATA
+
+
+################################################################
+#
+# Phase 3: Query our config for all defined ACLs
+#
+################################################################
+
+  #
+  # Step 1: Create a list of gateway,collection,acl tuples
+  #
+
+  # _tmp_defined_acls = [ (gateway, collection, acl) ]
+
+- name: '[ACLs] Create list of gateways with collections'
+  set_fact:
+    _tmp_defined_acls: "{{ _tmp_defined_acls|default([]) + [item.0]|product([item.1], item.1.acls)|list }}"
+  with_subelements:
+    - '{{ gcs.gateways }}'
+    - collections
+    - skip_missing: true
+  when:
+    - item.1.acls is defined
+
+  #
+  # Step 2: Create a map from gateway,collection = >collection uuid
+  #
+
+    # _tmp_existing_collections is the raw output of
+    # 'config collection list' and so we can't use it easily.
+
+- name: '[ACLs] Query current collection definitions'
+  become:  yes
+  command: /usr/sbin/globus-connect-server-config collection list
+  register: _tmp_existing_collections
+
+    # _tmp_collection_uuid(string) => <collection uuid>
+    #  ex string: ' | POSIX | POSIX GW 2 | mapped | Mapped Collection | '
+
+- name: '[ACLs] Create map from collection to uuid'
+  vars:
+    _key_regexp: '( \| [^|]* \| [^|]* \| [^|]* \| [^|]* \| )'
+  set_fact:
+    _tmp_collection_uuid: "{{ _tmp_collection_uuid|default({})|combine({ (item|regex_search(_key_regexp,'\\1'))[0] : item.split(' | ')[0] }) }}"
+  with_items:
+    - "{{ _tmp_existing_collections.stdout_lines[1:] }}"
+
+  #
+  # Step 3: Change (gateway,collection) tuples in _tmp_defined_acls to
+  # collection uuids
+  #
+
+    # _defined_acls = [<collection uuid>, {acl}]
+
+- name: 
+  set_fact:
+    _defined_acls: "{{ _defined_acls|default([]) + [[_tmp_collection_uuid[' | ' + item[0].connector + ' | ' + item.0.display_name + ' | ' + item.1.type + ' | ' + item.1.display_name + ' | '], item.2]] }}"
+  with_items:
+    - "{{ _tmp_defined_acls }}"
+
+
+################################################################
+#
+# Phase 4: Create missing ACLs
+#
+################################################################
+
+
+  #
+  # Step 1: Remove 'DATA_TYPE' and 'id' from the acl definitions
+  # in _existing_acls so we can compare it to _defined_acls
+  #
+
+- name: '[ACLs] Reset tmp variable'
+  set_fact:
+    _tmp_existing_acls: []
+
+- name: '[ACLs] Normalize the _existing_acls entries'
+  set_fact:
+    _tmp_existing_acls: "{{ _tmp_existing_acls + [[ item.0, {'path': item.1.path, 'permissions': item.1.permissions, 'principal': item.1.principal, 'principal_type': item.1.principal_type, 'role_id': item.1.role_id, 'role_type': item.1.role_type}]] }}"
+  with_items:
+    - "{{ _existing_acls }}"
+
+  #
+  # Step 2: Filter _existing_acls from _defined_acls
+  #
+
+- name: '[ACLs] Reset tmp variable'
+  set_fact:
+    _tmp_defined_acls: []
+
+- name: '[ACLs] Filter out existing ACLs from defined ACLs'
+  set_fact:
+    _tmp_defined_acls: "{{ _tmp_defined_acls + [[ item.0, item.1 ]] }}"
+  with_items:
+    - "{{ _defined_acls }}"
+  when: >
+    [item.0, {'path': item.1.path, 'permissions': item.1.permissions, 'principal': item.1.principal, 'principal_type': item.1.principal_type, 'role_id': none, 'role_type': none}] not in _tmp_existing_acls
+
+
+#           [
+#                "6d4c72da-70a9-4706-887f-b4f77174ceea",
+#                {
+#                    "notify_email": null,
+#                    "notify_message": null,
+#                    "path": "/",
+#                    "permissions": "r",
+#                    "principal": "7bb58e97-a695-4bbb-a8b5-36b709c12ab6",
+#                    "principal_type": "identity"
+#                }
+#            ]
+
+
+#        "_tmp_existing_acls": [
+#            [
+#                "6d4c72da-70a9-4706-887f-b4f77174ceea",
+#                {
+#                    "path": "/",
+#                    "permissions": "r",
+#                    "principal": "7bb58e97-a695-4bbb-a8b5-36b709c12ab6",
+#                    "principal_type": "identity",
+#                    "role_id": null,
+#                    "role_type": null
+#                }
+#            ],
+#        ]
+
+
+  #
+  # Step 3: Create missing ACLs
+  #
+
+- name: '[ACLs] Create missing ACLs'
+  uri:
+    headers:
+      Authorization: "Bearer {{ transfer_access_token }}"
+    url: "{{ TRANSFER_API }}/v0.10/endpoint/{{ item.0 }}/access"
+    method: POST
+    status_code: 201
+    body_format: json
+    body: "{{ item.1|combine({'DATA_TYPE': 'access'}) }}"
+  register: _tmp_existing_acls
+  with_items:
+    - "{{ _tmp_defined_acls }}"
+

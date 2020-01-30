@@ -1,0 +1,31 @@
+---
+- name: install the EPEL repository
+  become: yes
+  yum:
+    name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-{{ os_version }}.noarch.rpm
+    state: present
+
+- name: install GCS RPM repository key
+  become: yes
+  rpm_key:
+    key: https://downloads.globus.org/toolkit/gt6/stable/repo/rpm/RPM-GPG-KEY-Globus
+
+- name: install GT6 repository
+  become: yes
+  yum:
+    name: http://downloads.globus.org/toolkit/gt6/stable/installers/repo/rpm/globus-toolkit-repo-latest.noarch.rpm
+    state: present
+
+- name: Enable Globus-Connect-Server-5-Stable
+  become: yes
+  shell: yum-config-manager --enable Globus-Connect-Server-5-Stable
+
+- name: Enable Globus-Toolkit-6-Stable
+  become: yes
+  shell: yum-config-manager --enable Globus-Toolkit-6-Stable
+
+- name: Install GCS packages
+  become: yes
+  yum:
+    name: [ 'globus-connect-server{{gcs.version}}' ]
+    state: present
