@@ -123,7 +123,7 @@
   register: result
   until: result.stdout.find("No collections available. Try again later.") == -1
   retries: 10
-  delay: 10
+  delay: 60
 
 ################################################################
 #
@@ -363,4 +363,4 @@
   until:
     - ('status' not in result or result.status != 503)
   retries: 10
-  delay: 10
+  delay: 60
