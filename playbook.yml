@@ -54,20 +54,33 @@
         -
           root: /
           connector: POSIX
-          display_name: "POSIX Storage Gateway"
+          display_name: "HA Storage Gateway"
+          high_assurance: True
+          authentication_assurance_timeout: 5
+          domain: globus.org
+          identity_provider:
+          mapped_collections: allow
+          guest_collections: disallow
+
+          # (OPTIONAL) List of collections for this gateway
+          collections:
+            # '-' will start a new collection definition
+            -
+              display_name: "Mapped Collection"
+              root: /
+              default_directory: /
+              type: mapped
+
+        -
+          root: /
+          connector: POSIX
+          display_name: "NON HA Storage Gateway"
           high_assurance: False
-          authentication_assurance_timeout: 
+          authentication_assurance_timeout:
           domain: globus.org
           identity_provider:
           mapped_collections: disallow
           guest_collections: allow
-          restrict_paths:
-
-          posix:
-            users_allow:
-            users_deny:
-            groups_allow:
-            groups_deny:
 
           # (OPTIONAL) List of collections for this gateway
           collections:
@@ -81,15 +94,3 @@
               guest:
                 user_auth_identity: jasonalt@globus.org
                 local_username: jasonalt
-
-
-              # (OPTIONAL)
-              acls:
-                # '-' will start a new acl definition
-                -
-                  principal_type: "{{ acl_principal_type }}"
-                  principal:      "{{ acl_principal }}"
-                  path:           "{{ acl_path }}"
-                  permissions:    "{{ acl_permissions }}"
-                  notify_email:
-                  notify_message:

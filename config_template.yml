@@ -23,23 +23,6 @@ gcsv5_client_secret:
 # (REQUIRED) String
 lets_encrypt_email: 
 
-#
-# These acl entries are only required because the example playbook
-# includes an example ACL.
-#
-
-# (REQUIRED) identity|group|all_authenticated_users|anonymous
-acl_principal_type: 
-
-# (REQUIRED) uuid if principal_type=identity or group. Empty otherwise.
-acl_principal: 
-
-# (REQUIRED) String
-acl_path: 
-
-# (REQUIRED) r|rw
-acl_permissions: 
-
 ##################################################
 #
 # Optional values
