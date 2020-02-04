@@ -80,7 +80,7 @@ GLOBUS_CONNECT_SERVER:
       root:
  
       # (REQUIRED) 
-      # Box|Ceph|Google Drive|Google Cloud Storage|POSIX|S3|BlackPearl
+      # Box|BlackPearl|Ceph|Google Drive|Google Cloud Storage|POSIX|S3
       connector:
  
       # (REQUIRED) String
@@ -108,6 +108,59 @@ GLOBUS_CONNECT_SERVER:
       mapped_collections:
 
       #
+      # Box Connector Options
+      #
+      box:
+        # (REQUIRED) String
+        box_json_config:
+
+      # 
+      # BlackPearl Connector Options
+      # 
+      blackpearl:
+        # (REQUIRED) String
+        bp_access_id_file:
+        # (REQUIRED) String
+        s3_endpoint:
+
+      #
+      # Ceph Connector Options
+      #
+      ceph:
+         # (REQUIRED) String
+         ceph_admin_key_id:
+         # (REQUIRED) String
+         ceph_admin_secret_key:
+         # (REQUIRED) String
+         s3_endpoint:
+         # (OPTIONAL) String
+         s3_bucket:
+
+      #
+      # Google Drive Connector Options
+      #
+      google_drive:
+        # (REQUIRED) String
+        client_id:
+        # (REQUIRED) String
+        client_secret:
+        # (OPTIONAL) String
+        user_api_rate_quota:
+
+      #
+      # Google Cloud Connector Options
+      #
+      google_cloud_storage:
+        # (REQUIRED) String
+        client_id:
+        # (REQUIRED) String
+        client_secret:
+        # (OPTIONAL) List (Not implemented)
+        google_cloud_storage_project:
+        # (OPTIONAL) List (Not implemented)
+        google-cloud-storage-bucket:
+
+      #
       # POSIX Connector Options
       #
       posix:
@@ -124,49 +177,15 @@ GLOBUS_CONNECT_SERVER:
         groups_deny:
 
       #
-      # Google Drive Connector Options
-      #
-      google_drive:
-        # (OPTIONAL)
-        user_api_rate_quota: String
-
-      #
       # S3 Connector Options
       #
       s3:
          # (REQUIRED) String
+         s3_endpoint:
+         # (Optional) String
          s3_user_credentials:
-         # (REQUIRED) String
-         s3_endpoint:
          # (OPTIONAL) String
          s3_bucket:
-
-      #
-      # Ceph Connector Options
-      #
-      ceph:
-         # (REQUIRED) String
-         ceph_admin_key_id:
-         # (REQUIRED) String
-         ceph_admin_secret_key:
-         # (OPTIONAL) String
-         s3_endpoint:
-         # (OPTIONAL) String
-         s3_bucket:
-
-      #
-      # Box Connector Options
-      #
-      box:
-        # (REQUIRED) String
-        box_json_config:
-
-      # 
-      # BlackPearl Connector Options
-      # 
-      blackpearl:
-        # (REQUIRED) String
-        bp_access_id_file:
 
       collections:
         # '-' will start a new collection definition
@@ -198,7 +217,7 @@ GLOBUS_CONNECT_SERVER:
               # (REQUIRED) identity|group|all_authenticated_users|anonymous
               principal_type: 
 
-              # (REQUIRED) uuid if principal_type=identity or group. Empty otherwise.
+              # (REQUIRED) uuid if principal_type=identity or group
               principal: 
 
               # (REQUIRED) String

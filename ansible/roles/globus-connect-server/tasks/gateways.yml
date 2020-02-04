@@ -24,66 +24,100 @@
         --domain {{ item.domain }}
 
         {% if item.identify_provider is defined %}
-        {% if item.identify_provider != None %}
-        --identity-provider {{ item.identity_provider }}
-        {% endif %}
+          {% if item.identify_provider %}
+          --identity-provider {{ item.identity_provider }}
+          {% endif %}
         {% endif %}
 
         {% if item.restrict_paths is defined %}
-        {% if item.restrict_paths != None %}
-        --restrict-paths {{ item.restrict_paths }}
-        {% endif %}
+          {% if item.restrict_paths %}
+            --restrict-paths {{ item.restrict_paths }}
+          {% endif %}
         {% endif %}
 
         --{{ item.mapped_collections }}-mapped-collections
         --{{ item.guest_collections }}-guest-collections
 
-        {% if item.posix is defined %}
-          {% if item.posix.users_allow is defined %}
-            {% if item.posix.users_allow %}
-            --users-allow {{ item.posix.users_allow }}
-            {% endif %}
-          {% endif %}
-
-          {% if item.posix.users_deny is defined %}
-            {% if item.posix.users_deny %}
-            --users-deny {{ item.posix.users_deny }}
-            {% endif %}
-          {% endif %}
-
-          {% if item.posix.groups_allow is defined %}
-            {% if item.posix.groups_allow %}
-            --users-allow {{ item.posix.groups_allow }}
-            {% endif %}
-          {% endif %}
-
-          {% if item.posix.groups_deny is defined %}
-            {% if item.posix.groups_deny %}
-            --users-deny {{ item.posix.grousp_deny }}
-            {% endif %}
-          {% endif %}
-        {% endif %}
-
-        {% if item.google_drive is defined %}
-          {% if item.google_drive.user_api_rate_quota is defined %}
-          --user-api-rate-quota {{ item.google_drive.user_api_rate_quota }}
-          {% endif %}
-        {% endif %}
-
-        {% if item.s3 is defined %}
-        --s3-user-credentials {{ item.s3.s3_user_credentials }}
-        --s3-endpoint {{ item.s3.s3_endpoint }}
-          {% if item.s3.s3_bucket is defined %}
-          --s3-bucket {{ item.s3.s3_bucket }}
-          {% endif %}
-        {% endif %}
-
-        {% if item.box is defined %}
+        {% if item.connector == 'Box' %}
         --box-json-config {{ item.box.box_json_config }}
         {% endif %}
 
-        {% if item.blackpearl is defined %}
-        --type {{ item.blackpearl.bp_access_id_file }}
+        {% if item.connector == 'BlackPearl' %}
+        --bp-access-id-file {{ item.blackpearl.bp_access_id_file }}
+        --s3_endpoint       {{ item.blackpearl.s3_endpoint }}
+        {% endif %}
+
+        {% if item.connector == 'Ceph' %}
+        --ceph-admin-key-id     {{ item.ceph.ceph_admin_key_id }}
+        --ceph-admin-secret-key {{ item.ceph.ceph_admin_secrety_key }}
+        --s3-endpoint           {{ item.ceph.s3_endpoint }}
+          {% if item.ceph.s3_bucket is defined %}
+          {% if item.ceph.s3_bucket %}
+          --s3-bucket
+          {% endif %}
+          {% endif %}
+        {% endif %}
+
+        {% if item.connector == 'Google Drive' %}
+        --client-id     {{ item.google_drive.client_id }}
+        --client-secret {{ item.google_drive.client_secret }}
+
+          {% if item.google_drive.user_api_rate_quota is defined %}
+          {% if item.google_drive.user_api_rate_quota %}
+          --user-api-rate-quota {{ item.google_drive.user_api_rate_quota }}
+          {% endif %}
+          {% endif %}
+        {% endif %}
+
+        {% if item.connector == 'Google Cloud Storage' %}
+        --client-id     {{ item.google_cloud_storage.client_id }}
+        --client-secret {{ item.google_cloud_storage.client_secret }}
+        {% endif %}
+
+        {% if item.connector == 'POSIX' %}
+          {% if item.posix.users_allow is defined %}
+          {% if item.posix.users_allow %}
+          --users-allow {{ item.posix.users_allow }}
+          {% endif %}
+          {% endif %}
+
+          {% if item.posix.users_deny is defined %}
+          {% if item.posix.users_deny %}
+          --users-deny {{ item.posix.users_deny }}
+          {% endif %}
+          {% endif %}
+
+          {% if item.posix.groups_allow is defined %}
+          {% if item.posix.groups_allow %}
+          --groups-allow {{ item.posix.groups_allow }}
+          {% endif %}
+          {% endif %}
+
+          {% if item.posix.groups_deny is defined %}
+          {% if item.posix.groups_deny %}
+          --groups-deny {{ item.posix.groups_deny }}
+          {% endif %}
+          {% endif %}
+        {% endif %}
+
+        {% if item.connector == 'S3' %}
+        --s3-endpoint {{ item.s3.se_endpoint }}
+
+          {% if item.s3.s3_user_credentials is defined %}
+          {% if item.s3.s3_user_credentials %}
+          --s3-user-credentials {{ item.s3.s3_user_credentials }}
+          {% else %}
+          --s3-unauthenticated
+          {% endif %}
+          {% else %}
+          --s3-unauthenticated
+          {% endif %}
+
+          {% if item.s3.s3_bucket is defined %}
+          {% if item.s3.s3_bucket %}
+          --s3-bucket {{ item.s3.s3_bucket }}
+          {% endif %}
+          {% endif %}
         {% endif %}
 
 
