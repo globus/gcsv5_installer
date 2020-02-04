@@ -136,11 +136,13 @@
 
     # _defined_acls = [<collection uuid>, {acl}]
 
-- name: 
+- name: '[ACLs] Create list of defined ACLs'
   set_fact:
     _defined_acls: "{{ _defined_acls|default([]) + [[_tmp_collection_uuid[' | ' + item[0].connector + ' | ' + item.0.display_name + ' | ' + item.1.type + ' | ' + item.1.display_name + ' | '], item.2]] }}"
   with_items:
     - "{{ _tmp_defined_acls }}"
+  when:
+    - _tmp_defined_acls is defined
 
 
 ################################################################
@@ -178,37 +180,10 @@
     _tmp_defined_acls: "{{ _tmp_defined_acls + [[ item.0, item.1 ]] }}"
   with_items:
     - "{{ _defined_acls }}"
-  when: >
-    [item.0, {'path': item.1.path, 'permissions': item.1.permissions, 'principal': item.1.principal, 'principal_type': item.1.principal_type, 'role_id': none, 'role_type': none}] not in _tmp_existing_acls
-
-
-#           [
-#                "6d4c72da-70a9-4706-887f-b4f77174ceea",
-#                {
-#                    "notify_email": null,
-#                    "notify_message": null,
-#                    "path": "/",
-#                    "permissions": "r",
-#                    "principal": "7bb58e97-a695-4bbb-a8b5-36b709c12ab6",
-#                    "principal_type": "identity"
-#                }
-#            ]
-
-
-#        "_tmp_existing_acls": [
-#            [
-#                "6d4c72da-70a9-4706-887f-b4f77174ceea",
-#                {
-#                    "path": "/",
-#                    "permissions": "r",
-#                    "principal": "7bb58e97-a695-4bbb-a8b5-36b709c12ab6",
-#                    "principal_type": "identity",
-#                    "role_id": null,
-#                    "role_type": null
-#                }
-#            ],
-#        ]
-
+  when:
+    - _defined_acls is defined
+    - > 
+      [item.0, {'path': item.1.path, 'permissions': item.1.permissions, 'principal': item.1.principal, 'principal_type': item.1.principal_type, 'role_id': none, 'role_type': none}] not in _tmp_existing_acls
 
   #
   # Step 3: Create missing ACLs
