@@ -3,9 +3,9 @@ PYTHON_VERSION:=3
 PYTHON:=$(VENV_ROOT)/bin/python$(PYTHON_VERSION)
 PIP:=$(VENV_ROOT)/bin/pip$(PYTHON_VERSION)
 ANSIBLE_PLAYBOOK:=$(VENV_ROOT)/bin/ansible-playbook
-PLAYBOOK:="playbook.yml"
-ANSIBLE_CFG:="ansible/ansible.cfg"
-CONFIG:=config.yml
+PLAYBOOK=playbook.yml
+ANSIBLE_CFG=ansible/ansible.cfg
+CONFIG=config.yml
 
 all:
 	$(error Usage: "make [install|clean]")
