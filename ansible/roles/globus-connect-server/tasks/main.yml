@@ -42,7 +42,8 @@
 #
 # Create the ACL(s)
 #
-- name: create the acl(s)
-  import_tasks: acls.yml
-  tags:
-    - acls
+#  XXX currently disabled
+#- name: create the acl(s)
+#  import_tasks: acls.yml
+#  tags:
+#    - acls
