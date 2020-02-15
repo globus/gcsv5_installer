@@ -9,19 +9,26 @@
 ##################################################
 
 # (REQUIRED) 53
-gcsv5_version: 
+gcsv5_version:
 
 # (REQUIRED) Production|Preview|Staging|Test|Integration|Sandbox
-globus_environment: 
+globus_environment:
 
 # (REQUIRED) String
-gcsv5_client_id: 
+gcsv5_client_id:
 
 # (REQUIRED) String
-gcsv5_client_secret: 
+gcsv5_client_secret:
 
 # (REQUIRED) String
-lets_encrypt_email: 
+lets_encrypt_email:
+
+#
+# globus_domain will be the domain set on the storage gateways.
+#
+
+# (REQUIRED) String
+globus_domain:
 
 ##################################################
 #
@@ -44,20 +51,22 @@ endpoint_admin:
 #
 ##################################################
 
-# (Placeholdr)
-app_client_id:
+__native_app__: &native_app
+  id:
+  secret:
 
-# (Placeholdr)
-app_client_secret:
+__access_tokens__:
+- grant_type: authorization_code
+  scopes:
+  - urn:globus:auth:scope:transfer.api.globus.org:all
+  - urn:globus:auth:scope:{{ gcsv5_client_id }}:manage_collections
+  access_type: offline
+  session:
+    required_identities:
+    - '{{ globus_identity }}'
+    prompt_login: false
+    new_session: false
+  client:
+    <<: *native_app
+  tokens: []
 
-# (Placeholdr)
-transfer_access_token:
-
-# (Placeholdr)
-transfer_refresh_token:
-
-# (Placeholdr)
-gcs_manager_access_token:
-
-# (Placeholdr)
-gcs_manager_refresh_token:
