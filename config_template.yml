@@ -30,6 +30,17 @@ lets_encrypt_email:
 # (REQUIRED) String
 globus_domain:
 
+#
+# globus_identity must be an identity with the same domain as the domain
+# used on the storage gateways
+#
+
+# (REQUIRED) String
+globus_identity:
+
+# (REQUIRED) String
+local_username:
+
 ##################################################
 #
 # Optional values
@@ -55,18 +66,12 @@ __native_app__: &native_app
   id:
   secret:
 
-__access_tokens__:
+__tokens__:
 - grant_type: authorization_code
   scopes:
-  - urn:globus:auth:scope:transfer.api.globus.org:all
-  - urn:globus:auth:scope:{{ gcsv5_client_id }}:manage_collections
+  - name: urn:globus:auth:scope:transfer.api.globus.org:all
+  - name: urn:globus:auth:scope:{{ gcsv5_client_id }}:manage_collections
   access_type: offline
-  session:
-    required_identities:
-    - '{{ globus_identity }}'
-    prompt_login: false
-    new_session: false
   client:
     <<: *native_app
-  tokens: []
-
+  tokens: {}

@@ -149,8 +149,8 @@ def _process_native_app(config, environment):
     app_id = client['included']['client_credential']['client']
     app_secret = client['included']['client_credential']['secret']
 
-    yaml.set_key_value(config, '__native_app__.id',     "'%s'" % app_id)
-    yaml.set_key_value(config, '__native_app__.secret', "'%s'" % app_secret)
+    yaml.set_key_value(config, '__native_app__.id',     app_id)
+    yaml.set_key_value(config, '__native_app__.secret', app_secret)
 
 
 #####################################################################

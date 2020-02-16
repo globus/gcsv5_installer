@@ -36,10 +36,10 @@
       endpoint_name:             "{{ endpoint_name }}"
       endpoint_server_name:      "{{ endpoint_server_name }}"
       endpoint_admin:            "{{ endpoint_admin }}"
-      gcs_manager_refresh_token: "{{ gcs_manager_refresh_token }}"
-      transfer_refresh_token:    "{{ transfer_refresh_token }}"
-      app_client_secret:         "{{ app_client_secret }}"
-      app_client_id:             "{{ app_client_id }}"
+      gcs_manager_refresh_token: "{{ __tokens__.0.tokens[gcsv5_client_id].refresh_token }}"
+      transfer_refresh_token:    "{{ __tokens__.0.tokens['transfer.api.globus.org'].refresh_token }}"
+      app_client_id:             "{{ __native_app__.id }}"
+      app_client_secret:         "{{ __native_app__.secret }}"
 
 
       #
@@ -57,7 +57,7 @@
           display_name: "HA Storage Gateway"
           high_assurance: True
           authentication_assurance_timeout: 5
-          domain: globus.org
+          domain: "{{ globus_domain }}"
           identity_provider:
           mapped_collections: allow
           guest_collections: disallow
@@ -77,7 +77,7 @@
           display_name: "NON HA Storage Gateway"
           high_assurance: False
           authentication_assurance_timeout:
-          domain: globus.org
+          domain: "{{ globus_domain }}"
           identity_provider:
           mapped_collections: disallow
           guest_collections: allow
@@ -92,5 +92,5 @@
               type: guest
 
               guest:
-                user_auth_identity: jasonalt@globus.org
-                local_username: jasonalt
+                user_auth_identity: "{{ globus_identity }}"
+                local_username: "{{ local_username }}"
