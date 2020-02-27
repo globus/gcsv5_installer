@@ -1,22 +1,10 @@
 import sys
-import utils.yaml as yaml
-import utils.tokens as tokens
-import utils.identities as identities
-import utils.clients as clients
+import utils.yaml as Yaml
+import utils.tokens as Tokens
+import utils.identities as Identities
+import utils.clients as Clients
 
 
-def _is_client_valid(environment, client_id, client_secret):
-    if client_id is None or client_secret is None:
-        return False
-
-    resp = clients.get_client(client_id, client_secret, environment, client_id)
-    if 'client' not in resp:
-        return False
-    if 'id' not in resp['client']:
-        return False
-
-    return resp['client']['id'] == client_id
- 
 #####################################################################
 #
 #  ACCESS TOKEN PROCESSING
@@ -25,7 +13,7 @@ def _is_client_valid(environment, client_id, client_secret):
 
 
 def _lookup_identity_username(client_id, client_secret, environment, username):
-    resp = identities.lookup_identities(client_id,
+    resp = Identities.lookup_identities(client_id,
                                         client_secret,
                                         environment,
                                         [username])
@@ -78,42 +66,113 @@ def _get_auth_grant_options(token, environment):
 
     return options
 
-def _process_access_tokens(config, environment):
-    requested_tokens = yaml.get_key_value(config, '__tokens__')
+
+def _try_refresh_token(client, environment, token):
+    if not 'refresh_token' in token:
+        return None
+
+    # Revoke the access token, if it exists
+    if token.get('access_token') is not None:
+        Tokens.revoke_token(client['id'],
+                            client['secret'],
+                            environment,
+                            token.get('access_token'))
+        token['access_token'] = None
+
+    # Refresh the access token
+    new_token = Tokens.refresh_token(client['id'],
+                                     client['secret'],
+                                     environment,
+                                     token.get('refresh_token'))
+    if 'access_token' not in new_token:
+        return None
+    if 'expires_in' not in new_token:
+        return None
+    return new_token
+
+
+def _is_token_valid(client, environment, token):
+    if token is None:
+        return False
+
+    if 'access_token' not in token:
+        return False
+
+    i = Tokens.introspect_token(client['id'],
+                                client['secret'],
+                                environment,
+                                token['access_token'])
+
+    if i is None:
+        return False
+    return i.get('active', False)
+
+
+def _salvage_token_map(environment, token_request):
+    token_map = token_request.get('tokens')
+    if token_map is None:
+        return None
+
+    for token in token_map.values():
+        new_token = _try_refresh_token(token_request['client'], environment, token)
+        if new_token is not None:
+            token['access_token'] = new_token['access_token']
+            token['expires_in']   = new_token['expires_in']
+            continue
+
+        if not _is_token_valid(token_request['client'], environment, token):
+            return None
+    return token_map
+
+
+def _create_token_map(environment, token_request):
+    scopes = token_request['scopes']
+    scope_names = list(map(lambda x: x['name'], scopes))
+    grant_type = token_request['grant_type']
+    client_id = token_request['client']['id']
+    client_secret = token_request['client']['secret']
+
+    if token_request['grant_type'] == 'authorization_code':
+        kwargs = _get_auth_grant_options(token_request, environment)
+        t = Tokens.authorization_grant(token_request['client']['id'],
+                                       token_request['client']['secret'],
+                                       environment,
+                                       scope_names,
+                                       **kwargs)
+    elif token_request['grant_type'] == 'client_credentials':
+        t = Tokens.credentials_grant(token_request['client']['id'],
+                                     token_request['client']['secret'],
+                                     environment,
+                                     scope_names)
+
+    token_map = {}
+    for t in t.pop('other_tokens') + [t]:
+        i = Tokens.introspect_token(token_request['client']['id'],
+                                    token_request['client']['secret'],
+                                    environment,
+                                    t['access_token'])
+        t['introspect'] = i
+        token_map[t['resource_server']] = t
+    return token_map
+
+
+def _generate_token_map(environment, token_request):
+    token_map = _salvage_token_map(environment, token_request)
+    if token_map is not None:
+        return token_map
+    return _create_token_map(environment, token_request)
+
+
+def _process__tokens__(config, environment):
+    # Nothing to do if __tokens__ is not defined
+    requested_tokens = Yaml.get_key_value(config, '__tokens__')
     if requested_tokens is None:
         return
 
+    # For each token_request 
     for index, token_request in enumerate(requested_tokens):
-        scopes = token_request['scopes']
-        scope_names = list(map(lambda x: x['name'], scopes))
-        grant_type = token_request['grant_type']
-        client_id = token_request['client']['id']
-        client_secret = token_request['client']['secret']
-
-        if token_request['grant_type'] == 'authorization_code':
-            kwargs = _get_auth_grant_options(token_request, environment)
-            t = tokens.authorization_grant(token_request['client']['id'],
-                                           token_request['client']['secret'],
-                                           environment,
-                                           scope_names,
-                                           **kwargs)
-        elif token_request['grant_type'] == 'client_credentials':
-            t = tokens.credentials_grant(token_request['client']['id'],
-                                         token_request['client']['secret'],
-                                         environment,
-                                         scope_names)
-
-
-        token_map = {}
-        for t in t.pop('other_tokens') + [t]:
-            i = tokens.introspect_token(token_request['client']['id'],
-                                        token_request['client']['secret'],
-                                        environment,
-                                        t['access_token'])
-            t['introspect'] = i
-            token_map[t['resource_server']] = t
-
-        yaml.set_key_value(config,
+        token_map = _generate_token_map(environment, token_request)
+        Yaml.set_key_value(config,
                            '__tokens__.'+str(index)+'.tokens',
                            token_map)
 
@@ -125,7 +184,7 @@ def _process_access_tokens(config, environment):
 #####################################################################
 
 def _is_native_app_defined(path):
-    native_app = yaml.get_key_value(path, '__native_app__')
+    native_app = Yaml.get_key_value(path, '__native_app__')
     if native_app is None:
         return False
 
@@ -137,20 +196,33 @@ def _is_native_app_defined(path):
     return True
 
 
-def _process_native_app(config, environment):
+def _is_client_valid(environment, client_id, client_secret):
+    if client_id is None or client_secret is None:
+        return False
+
+    resp = Clients.get_client(client_id, client_secret, environment, client_id)
+    if 'client' not in resp:
+        return False
+    if 'id' not in resp['client']:
+        return False
+
+    return resp['client']['id'] == client_id
+ 
+
+def _process__native_app__(config, environment):
     if _is_native_app_defined(config):
-        id = yaml.get_key_value(config, '__native_app__.id')
-        secret = yaml.get_key_value(config, '__native_app__.secret')
+        id = Yaml.get_key_value(config, '__native_app__.id')
+        secret = Yaml.get_key_value(config, '__native_app__.secret')
         if _is_client_valid(environment, id, secret):
             return
 
-    client = clients.create_client(environment)
+    client = Clients.create_client(environment)
 
     app_id = client['included']['client_credential']['client']
     app_secret = client['included']['client_credential']['secret']
 
-    yaml.set_key_value(config, '__native_app__.id',     app_id)
-    yaml.set_key_value(config, '__native_app__.secret', app_secret)
+    Yaml.set_key_value(config, '__native_app__.id',     app_id)
+    Yaml.set_key_value(config, '__native_app__.secret', app_secret)
 
 
 #####################################################################
@@ -168,15 +240,15 @@ def _parse_args(args):
 
     return {
         'config'      : args[1],
-        'environment' : yaml.get_key_value(args[1], 'globus_environment')
+        'environment' : Yaml.get_key_value(args[1], 'globus_environment')
     }
 
 
 def main():
     args = _parse_args(sys.argv)
 
-    _process_native_app(**args)
-    _process_access_tokens(**args)
+    _process__native_app__(**args)
+    _process__tokens__(**args)
 
 
 if __name__ == "__main__":
