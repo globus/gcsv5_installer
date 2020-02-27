@@ -267,7 +267,6 @@ def refresh_token(client_id, client_secret, environment, token):
         'grant_type'   : 'refresh_token'
     }
 
-    print (payload)
     r = requests.post(auth_uri + '/v2/oauth2/token',
                       data=payload, 
                       auth=(client_id, client_secret))
