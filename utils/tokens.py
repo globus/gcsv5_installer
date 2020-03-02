@@ -132,7 +132,8 @@ def authorization_grant(client_id,
                         session_identities = [],
                         session_message = None,
                         session_force_login = False,
-                        redirect_uri = None
+                        redirect_uri = None,
+                        force_new_session = False
 ):
 
     url = authorization_grant_build_url(client_id,
@@ -143,7 +144,8 @@ def authorization_grant(client_id,
                                         session_identities,
                                         session_message,
                                         session_force_login,
-                                        redirect_uri)
+                                        redirect_uri,
+                                        force_new_session)
 
     code = user_prompt_func(url)
 
@@ -173,13 +175,14 @@ def _authorization_main(args0, cmd, args):
     if environment not in environments:
         raise SystemExit(usage)
 
-    option_list = [                   ## Defaults #
-        ('session-force-login', False), # False
-        ('need-refresh-token',  False), # True
-        ('prefill-grant-name',  True),  # None
-        ('session-identities',  True),  # []
-        ('session-message',     True),  # None
-        ('redirect-uri',        True)   # None
+    option_list = [        # Requires value # Defaults
+        ('session-force-login', False),     #   False
+        ('force-new-session',   False),     #   False
+        ('need-refresh-token',  False),     #   True
+        ('prefill-grant-name',  True),      #   None
+        ('session-identities',  True),      #   []
+        ('session-message',     True),      #   None
+        ('redirect-uri',        True)       #   None
     ]
 
     kwargs = {'need_refresh_token': False}
