@@ -158,7 +158,7 @@ def _create_token_map(environment, token_request):
 
 def _generate_token_map(environment, token_request):
     token_map = _salvage_token_map(environment, token_request)
-    if token_map is not None:
+    if token_map is not None and len(token_map.keys()) > 0:
         return token_map
     return _create_token_map(environment, token_request)
 
