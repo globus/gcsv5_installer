@@ -257,6 +257,100 @@ def _credentials_main(args0, cmd, args):
 
 ###################################################################
 #
+#  DEPENDENT TOKEN FUNCTIONS
+#
+###################################################################
+
+def dependent_token(client_id, client_secret, environment, token):
+    auth_uri = AUTH_URIS[environment]
+
+    payload = {
+        'grant_type': 'urn:globus:auth:grant_type:dependent_token',
+        'token': token
+    }
+
+    r = requests.post(auth_uri + '/v2/oauth2/token',
+                      data=payload, 
+                      auth=(client_id, client_secret))
+    return r.json()
+
+def _dependent_main(args0, cmd, args):
+    usage = "Some useful usage message"
+
+    client_id = os.environ.get('CLIENT_ID')
+    if client_id is None:
+        raise SystemExit(usage)
+
+    client_secret = os.environ.get('CLIENT_SECRET')
+    if client_secret is None:
+        raise SystemExit(usage)
+
+    if len(args) != 2:
+        raise SystemExit(usage)
+
+    environments = '|'.join(AUTH_URIS.keys())
+    environment = args[0]
+    if environment not in environments:
+        raise SystemExit(usage)
+    token = args[1]
+
+    resp = dependent_token(client_id, client_secret, environment, token)
+    print ("="*60)
+    print (resp)
+    print ("="*60)
+
+
+###################################################################
+
+
+###################################################################
+#
+#  INTROSPECT TOKEN FUNCTIONS
+#
+###################################################################
+
+def introspect_token(client_id, client_secret, environment, token):
+    auth_uri = AUTH_URIS[environment]
+
+    payload = {
+        'token': token,
+        'include': 'identities_set,session_info'
+    }
+
+    r = requests.post(auth_uri + '/v2/oauth2/token/introspect',
+                      data=payload, 
+                      auth=(client_id, client_secret))
+    return r.json()
+
+
+def _introspect_main(args0, cmd, args):
+    usage = "Some useful usage message"
+
+    client_id = os.environ.get('CLIENT_ID')
+    if client_id is None:
+        raise SystemExit(usage)
+
+    client_secret = os.environ.get('CLIENT_SECRET')
+    if client_secret is None:
+        raise SystemExit(usage)
+
+    if len(args) != 2:
+        raise SystemExit(usage)
+
+    environments = '|'.join(AUTH_URIS.keys())
+    environment = args[0]
+    if environment not in environments:
+        raise SystemExit(usage)
+    token = args[1]
+
+    resp = introspect_token(client_id, client_secret, environment, token)
+    print ("="*60)
+    print (resp)
+    print ("="*60)
+
+
+###################################################################
+#
 #  REFRESH TOKEN GRANT FUNCTIONS
 #
 ###################################################################
@@ -350,67 +444,24 @@ def _revoke_main(args0, cmd, args):
 
 ###################################################################
 #
-#  INTROSPECT TOKEN FUNCTIONS
-#
-###################################################################
-
-def introspect_token(client_id, client_secret, environment, token):
-    auth_uri = AUTH_URIS[environment]
-
-    payload = {
-        'token': token,
-        'include': 'identities_set,session_info'
-    }
-
-    r = requests.post(auth_uri + '/v2/oauth2/token/introspect',
-                      data=payload, 
-                      auth=(client_id, client_secret))
-
-    return r.json()
-
-
-def _introspect_main(args0, cmd, args):
-    usage = "Some useful usage message"
-
-    client_id = os.environ.get('CLIENT_ID')
-    if client_id is None:
-        raise SystemExit(usage)
-
-    client_secret = os.environ.get('CLIENT_SECRET')
-    if client_secret is None:
-        raise SystemExit(usage)
-
-    if len(args) != 2:
-        raise SystemExit(usage)
-
-    environments = '|'.join(AUTH_URIS.keys())
-    environment = args[0]
-    if environment not in environments:
-        raise SystemExit(usage)
-    token = args[1]
-
-    resp = introspect_token(client_id, client_secret, environment, token)
-    print ("="*60)
-    print (resp)
-    print ("="*60)
-
-
-###################################################################
-#
 #  MAIN FUNCTIONS
 #
 ###################################################################
 
 def _parse_args(args):
-    cmds = ['authorization','credentials','refresh','revoke','introspect']
+    cmds = [
+        'authorization',
+        'credentials',
+        'dependent',
+        'introspect',
+        'refresh',
+        'revoke'
+    ]
 
-    usage = (
-              "Usage: %s [authorization|credentials|refresh|revoke|introspect]"
-            ) % (args[0])
+    usage = ("Usage: %s [%s]") % (args[0], '|'.join(cmds))
 
     if len(args) == 1 or args[1] not in cmds:
         raise SystemExit(usage)
-
     return (args[0], args[1], args[2:])
 
 
