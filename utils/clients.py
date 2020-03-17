@@ -87,55 +87,6 @@ def _create_main(args0, cmd, args):
 
 ###################################################################
 #
-#  GET CLIENT FUNCTIONS
-#
-###################################################################
-
-
-def get_client(auth_client_id,
-               auth_client_secret, 
-               environment, 
-               target_client_id
-):
-    auth_uri = AUTH_URIS[environment]
-    url = auth_uri + '/v2/api/clients/%s' % target_client_id
-    r = requests.get(url, auth=(auth_client_id, auth_client_secret))
-    return r.json()
-
-
-def _get_main(args0, cmd, args):
-    usage = "Some useful usage message"
-
-    auth_client_id = os.environ.get('CLIENT_ID')
-    if auth_client_id is None:
-        raise SystemExit(usage)
-
-    auth_client_secret = os.environ.get('CLIENT_SECRET')
-    if auth_client_secret is None:
-        raise SystemExit(usage)
-
-    if len(args) != 2:
-        raise SystemExit(usage)
-
-    environments = '|'.join(AUTH_URIS.keys())
-    environment = args[0]
-    if environment not in environments:
-        raise SystemExit(usage)
-    target_client_id = args[1]
-
-    resp = get_client(
-               auth_client_id, 
-               auth_client_secret, 
-               environment, 
-               target_client_id)
-
-    print ("="*60)
-    print (resp)
-    print ("="*60)
-
-
-###################################################################
-#
 #  DELETE CLIENT FUNCTIONS
 #
 ###################################################################
@@ -185,19 +136,139 @@ def _delete_main(args0, cmd, args):
 
 ###################################################################
 #
+#  GET CLIENT FUNCTIONS
+#
+###################################################################
+
+
+def get_client(auth_client_id,
+               auth_client_secret, 
+               environment, 
+               target_client_id
+):
+    auth_uri = AUTH_URIS[environment]
+    url = auth_uri + '/v2/api/clients/%s' % target_client_id
+    r = requests.get(url, auth=(auth_client_id, auth_client_secret))
+    return r.json()
+
+
+def _get_main(args0, cmd, args):
+    usage = "Some useful usage message"
+
+    auth_client_id = os.environ.get('CLIENT_ID')
+    if auth_client_id is None:
+        raise SystemExit(usage)
+
+    auth_client_secret = os.environ.get('CLIENT_SECRET')
+    if auth_client_secret is None:
+        raise SystemExit(usage)
+
+    if len(args) != 2:
+        raise SystemExit(usage)
+
+    environments = '|'.join(AUTH_URIS.keys())
+    environment = args[0]
+    if environment not in environments:
+        raise SystemExit(usage)
+    target_client_id = args[1]
+
+    resp = get_client(
+               auth_client_id, 
+               auth_client_secret, 
+               environment, 
+               target_client_id)
+
+    print ("="*60)
+    print (resp)
+    print ("="*60)
+
+
+###################################################################
+#
+#  UPDATE CLIENT FUNCTIONS
+#
+###################################################################
+
+def update_client(auth_client_id,
+                  auth_client_secret,
+                  environment,
+                  client_id,
+                  client_name,
+                  redirect_uris
+):
+ 
+    data = { 'client': {} }
+
+    if client_name is not None:
+        data['client']['name'] = name
+
+    if redirect_uris is not None:
+        data['client']['redirect_uris'] = redirect_uris
+
+    print ('PAYLOAD: ' + str(data))
+    auth_uri = AUTH_URIS[environment]
+    r = requests.put(auth_uri + '/v2/api/clients/'+client_id, json=data,
+                     auth=(auth_client_id, auth_client_secret))
+    return r.json()
+
+
+def _update_main(args0, cmd, args):
+    usage = (
+        "Usage: %s %s environment [client_id] [--name <name>] " 
+        "[--redirect-uris \"space-separated list\"] "
+         % (args0, '|'.join(APP_TEMPLATE_IDS.keys()))
+    )
+
+    auth_client_id = os.environ.get('CLIENT_ID')
+    if auth_client_id is None:
+        raise SystemExit(usage)
+
+    auth_client_secret = os.environ.get('CLIENT_SECRET')
+    if auth_client_secret is None:
+        raise SystemExit(usage)
+
+    if len(args) < 2:
+        raise SystemExit(usage)
+
+    (args, found, client_name) = _get_long_option(args, '--client-name', True)
+    (args, found, uris) = _get_long_option(args, '--redirect-uris', True)
+    if uris is not None:
+        uris = uris.split(' ')
+
+    environment = args[0]
+    client_id = args[1]
+
+    environments = '|'.join(AUTH_URIS.keys())
+    environment = args[0]
+    if environment not in environments:
+        raise SystemExit(usage)
+
+    resp = update_client(auth_client_id,
+                         auth_client_secret,
+                         environment,
+                         client_id,
+                         client_name,
+                         uris)
+
+    print ("="*60)
+    print (resp)
+    print ("="*60)
+
+
+###################################################################
+#
 #  MAIN FUNCTIONS
 #
 ###################################################################
 
 
 def _parse_args(args):
-    cmds = ['create','get','delete']
+    cmds = ['create', 'delete', 'get', 'update']
 
     usage = ( "Usage: %s [%s]") % (args[0], '|'.join(cmds))
 
     if len(args) == 1 or args[1] not in cmds:
         raise SystemExit(usage)
-
     return (args[0], args[1], args[2:])
 
 
