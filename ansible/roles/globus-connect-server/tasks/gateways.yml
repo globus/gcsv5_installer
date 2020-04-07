@@ -101,11 +101,11 @@
         {% endif %}
 
         {% if item.connector == 'S3' %}
-        --s3-endpoint {{ item.s3.se_endpoint }}
+        --s3-endpoint {{ item.s3.s3_endpoint }}
 
           {% if item.s3.s3_user_credentials is defined %}
           {% if item.s3.s3_user_credentials %}
-          --s3-user-credentials {{ item.s3.s3_user_credentials }}
+          --s3-user-credential
           {% else %}
           --s3-unauthenticated
           {% endif %}
