@@ -1,3 +1,6 @@
+> **Note**
+> This repository has been archived. Checkout https://github.com/globus/globus-connect-server-deploy.
+
 # What is a GCSv5 installer?
 GCSv5 installation and configuration is a lengthy, involved process requiring human-in-the-middle interactions. The official process is useful for one-off and first time installations but has a couple of limitations: (1) due to the amount of interactivity in the installation process, repeatable installations with the exact same configuration are cumbersome and (2) automation of the installation is non trivial. This repo was created to address both of those concerns.
 
